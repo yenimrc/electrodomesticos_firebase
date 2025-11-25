@@ -1,4 +1,3 @@
-// Importar todos los módulos necesarios para CRUD
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { 
@@ -8,8 +7,7 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc,
-  getDoc 
+  doc 
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -22,12 +20,10 @@ const firebaseConfig = {
   measurementId: "G-WSGTHTQZX0"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
-// Exportar todas las funciones para CRUD
 export { 
   db, 
   collection, 
@@ -35,7 +31,5 @@ export {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc,
-  getDoc 
+  doc 
 };
-
