@@ -1,17 +1,47 @@
-import { db, collection, getDocs } from './firebase-config.js';
+import { 
+  db, 
+  collection, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc 
+} from './config_firebase.js';
 
 class TiendaElectrodomesticos {
     constructor() {
         this.productos = [];
         this.categoriaFiltro = 'todos';
+        this.productoEditando = null;
         this.init();
     }
 
     async init() {
         await this.cargarProductos();
         this.setupEventListeners();
+        console.log("✅ CRUD inicializado correctamente");
     }
 
+    // CREATE - Crear producto
+    async crearProducto(productoData) {
+        try {
+            const docRef = await addDoc(collection(db, "electrodomesticos"), productoData);
+            console.log("✅ Producto creado con ID:", docRef.id);
+            
+            // Agregar el nuevo producto a la lista local
+            this.productos.push({ id: docRef.id, ...productoData });
+            this.mostrarProductos();
+            this.limpiarFormulario();
+            
+            return docRef.id;
+        } catch (error) {
+            console.error("❌ Error creando producto:", error);
+            alert("Error al crear el producto: " + error.message);
+            throw error;
+        }
+    }
+
+    // READ - Cargar productos
     async cargarProductos() {
         try {
             const querySnapshot = await getDocs(collection(db, "electrodomesticos"));
@@ -21,14 +51,59 @@ class TiendaElectrodomesticos {
                 this.productos.push({ id: doc.id, ...doc.data() });
             });
 
+            console.log(`📦 ${this.productos.length} productos cargados`);
             this.mostrarProductos();
         } catch (error) {
-            console.error("Error cargando productos:", error);
+            console.error("❌ Error cargando productos:", error);
             document.getElementById('productos-container').innerHTML = 
-                '<div class="error">Error al cargar los productos</div>';
+                '<div class="error">❌ Error al cargar los productos: ' + error.message + '</div>';
         }
     }
 
+    // UPDATE - Actualizar producto
+    async actualizarProducto(id, productoData) {
+        try {
+            const productoRef = doc(db, "electrodomesticos", id);
+            await updateDoc(productoRef, productoData);
+            console.log("✅ Producto actualizado:", id);
+            
+            // Actualizar en la lista local
+            const index = this.productos.findIndex(p => p.id === id);
+            if (index !== -1) {
+                this.productos[index] = { id, ...productoData };
+            }
+            
+            this.mostrarProductos();
+            this.limpiarFormulario();
+            
+        } catch (error) {
+            console.error("❌ Error actualizando producto:", error);
+            alert("Error al actualizar el producto: " + error.message);
+            throw error;
+        }
+    }
+
+    // DELETE - Eliminar producto
+    async eliminarProducto(id) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) {
+            return;
+        }
+        
+        try {
+            await deleteDoc(doc(db, "electrodomesticos", id));
+            console.log("✅ Producto eliminado:", id);
+            
+            // Eliminar de la lista local
+            this.productos = this.productos.filter(p => p.id !== id);
+            this.mostrarProductos();
+            
+        } catch (error) {
+            console.error("❌ Error eliminando producto:", error);
+            alert("Error al eliminar el producto: " + error.message);
+        }
+    }
+
+    // Mostrar productos en la interfaz
     mostrarProductos() {
         const container = document.getElementById('productos-container');
         
@@ -37,7 +112,7 @@ class TiendaElectrodomesticos {
             : this.productos.filter(producto => producto.categoria === this.categoriaFiltro);
 
         if (productosFiltrados.length === 0) {
-            container.innerHTML = '<div class="loading">No hay productos en esta categoría</div>';
+            container.innerHTML = '<div class="loading">📭 No hay productos en esta categoría</div>';
             return;
         }
 
@@ -45,24 +120,112 @@ class TiendaElectrodomesticos {
             <div class="producto-card" data-categoria="${producto.categoria}">
                 <div class="producto-imagen">
                     ${producto.imagen ? 
-                        `<img src="${producto.imagen}" alt="${producto.nombre}" style="max-width: 100%; max-height: 200px;">` : 
+                        `<img src="${producto.imagen}" alt="${producto.nombre}" onerror="this.style.display='none'; this.parentNode.innerHTML='📺 Imagen no disponible'">` : 
                         '📺 Imagen no disponible'
                     }
                 </div>
                 <div class="producto-nombre">${producto.nombre}</div>
-                <div class="producto-marca">Marca: ${producto.marca}</div>
-                <div class="producto-precio">$${producto.precio}</div>
-                <div class="producto-stock">Stock: ${producto.stock} unidades</div>
+                <div class="producto-marca">🏷️ Marca: ${producto.marca}</div>
+                <div class="producto-precio">💰 $${producto.precio}</div>
+                <div class="producto-stock">📦 Stock: ${producto.stock} unidades</div>
                 <div class="producto-descripcion">${producto.descripcion}</div>
-                <button class="btn-agregar" onclick="tienda.agregarAlCarrito('${producto.id}')">
-                    🛒 Agregar al Carrito
-                </button>
+                <div class="producto-actions">
+                    <button class="btn btn-warning" onclick="tienda.editarProducto('${producto.id}')">
+                        ✏️ Editar
+                    </button>
+                    <button class="btn btn-danger" onclick="tienda.eliminarProducto('${producto.id}')">
+                        🗑️ Eliminar
+                    </button>
+                </div>
             </div>
         `).join('');
     }
 
+    // Editar producto (cargar datos en formulario)
+    editarProducto(id) {
+        const producto = this.productos.find(p => p.id === id);
+        if (!producto) return;
+
+        this.productoEditando = id;
+        
+        // Llenar formulario con datos del producto
+        document.getElementById('producto-id').value = id;
+        document.getElementById('nombre').value = producto.nombre;
+        document.getElementById('categoria').value = producto.categoria;
+        document.getElementById('precio').value = producto.precio;
+        document.getElementById('stock').value = producto.stock;
+        document.getElementById('marca').value = producto.marca;
+        document.getElementById('imagen').value = producto.imagen || '';
+        document.getElementById('descripcion').value = producto.descripcion;
+        
+        // Cambiar botón a "Actualizar"
+        document.getElementById('btn-guardar').textContent = '💾 Actualizar Producto';
+        document.getElementById('btn-guardar').className = 'btn btn-success';
+        document.getElementById('btn-cancelar').classList.remove('hidden');
+        
+        // Scroll al formulario
+        document.querySelector('.admin-panel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Cancelar edición
+    cancelarEdicion() {
+        this.productoEditando = null;
+        this.limpiarFormulario();
+    }
+
+    // Limpiar formulario
+    limpiarFormulario() {
+        document.getElementById('producto-form').reset();
+        document.getElementById('producto-id').value = '';
+        document.getElementById('btn-guardar').textContent = '➕ Agregar Producto';
+        document.getElementById('btn-guardar').className = 'btn btn-primary';
+        document.getElementById('btn-cancelar').classList.add('hidden');
+        this.productoEditando = null;
+    }
+
+    // Manejar envío del formulario
+    async manejarSubmit(event) {
+        event.preventDefault();
+        
+        const formData = new FormData(event.target);
+        const productoData = {
+            nombre: formData.get('nombre'),
+            categoria: formData.get('categoria'),
+            precio: parseFloat(formData.get('precio')),
+            stock: parseInt(formData.get('stock')),
+            marca: formData.get('marca'),
+            imagen: formData.get('imagen'),
+            descripcion: formData.get('descripcion')
+        };
+
+        try {
+            if (this.productoEditando) {
+                // Actualizar producto existente
+                await this.actualizarProducto(this.productoEditando, productoData);
+                alert('✅ Producto actualizado correctamente');
+            } else {
+                // Crear nuevo producto
+                await this.crearProducto(productoData);
+                alert('✅ Producto creado correctamente');
+            }
+        } catch (error) {
+            console.error('Error en operación:', error);
+        }
+    }
+
+    // Configurar event listeners
     setupEventListeners() {
-        // Filtros por categoría
+        // Formulario
+        document.getElementById('producto-form').addEventListener('submit', (e) => {
+            this.manejarSubmit(e);
+        });
+
+        // Botón cancelar
+        document.getElementById('btn-cancelar').addEventListener('click', () => {
+            this.cancelarEdicion();
+        });
+
+        // Filtros
         document.querySelectorAll('.filtro-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
@@ -71,14 +234,6 @@ class TiendaElectrodomesticos {
                 this.mostrarProductos();
             });
         });
-    }
-
-    agregarAlCarrito(productoId) {
-        const producto = this.productos.find(p => p.id === productoId);
-        if (producto) {
-            alert(`✅ ${producto.nombre} agregado al carrito!\nPrecio: $${producto.precio}`);
-            // Aquí puedes agregar la lógica para el carrito de compras
-        }
     }
 }
 

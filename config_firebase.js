@@ -1,7 +1,16 @@
-// config_firebase.js - VERSIÓN CORREGIDA
+// Importar todos los módulos necesarios para CRUD
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc,
+  getDoc 
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCmvLcL8zLLD-PonHjoz4SA1AL4wjVH8M",
@@ -18,7 +27,7 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
-// ✅ EXPORTAR lo que necesita app.js
+// Exportar todas las funciones para CRUD
 export { 
   db, 
   collection, 
@@ -26,5 +35,7 @@ export {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc 
+  doc,
+  getDoc 
 };
+
