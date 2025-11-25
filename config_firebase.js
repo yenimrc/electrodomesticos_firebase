@@ -1,13 +1,10 @@
-// Import the functions you need from the SDKs you need
+// config_firebase.js - VERSIÓN CORREGIDA
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyCmvLcL8zLLD-PonHjoz4SA1AL4xwjVH8M",
+  apiKey: "AIzaSyCmvLcL8zLLD-PonHjoz4SA1AL4wjVH8M",
   authDomain: "electrodom-57313.firebaseapp.com",
   projectId: "electrodom-57313",
   storageBucket: "electrodom-57313.firebasestorage.app",
@@ -19,3 +16,15 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
+const db = getFirestore(app);
+
+// ✅ EXPORTAR lo que necesita app.js
+export { 
+  db, 
+  collection, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc 
+};
