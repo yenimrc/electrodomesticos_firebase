@@ -28,7 +28,6 @@ class TiendaElectrodomesticos {
             const docRef = await addDoc(collection(db, "electrodomesticos"), productoData);
             console.log("✅ Producto creado con ID:", docRef.id);
             
-            // Agregar el nuevo producto a la lista local
             this.productos.push({ id: docRef.id, ...productoData });
             this.mostrarProductos();
             this.limpiarFormulario();
@@ -67,7 +66,6 @@ class TiendaElectrodomesticos {
             await updateDoc(productoRef, productoData);
             console.log("✅ Producto actualizado:", id);
             
-            // Actualizar en la lista local
             const index = this.productos.findIndex(p => p.id === id);
             if (index !== -1) {
                 this.productos[index] = { id, ...productoData };
@@ -93,7 +91,6 @@ class TiendaElectrodomesticos {
             await deleteDoc(doc(db, "electrodomesticos", id));
             console.log("✅ Producto eliminado:", id);
             
-            // Eliminar de la lista local
             this.productos = this.productos.filter(p => p.id !== id);
             this.mostrarProductos();
             
@@ -119,15 +116,13 @@ class TiendaElectrodomesticos {
         container.innerHTML = productosFiltrados.map(producto => `
             <div class="producto-card" data-categoria="${producto.categoria}">
                 <div class="producto-imagen">
-                    ${producto.imagen ? 
-                        `<img src="${producto.imagen}" alt="${producto.nombre}" onerror="this.style.display='none'; this.parentNode.innerHTML='📺 Imagen no disponible'">` : 
-                        '📺 Imagen no disponible'
-                    }
+                    ${this.getIconoCategoria(producto.categoria)}
                 </div>
                 <div class="producto-nombre">${producto.nombre}</div>
-                <div class="producto-marca">🏷️ Marca: ${producto.marca}</div>
+                <div class="producto-marca">🏷️ ${producto.marca}</div>
                 <div class="producto-precio">💰 $${producto.precio}</div>
-                <div class="producto-stock">📦 Stock: ${producto.stock} unidades</div>
+                <div class="producto-stock">📦 ${producto.stock} unidades</div>
+                <div class="categoria-icon">${this.getNombreCategoria(producto.categoria)}</div>
                 <div class="producto-descripcion">${producto.descripcion}</div>
                 <div class="producto-actions">
                     <button class="btn btn-warning" onclick="tienda.editarProducto('${producto.id}')">
@@ -139,6 +134,30 @@ class TiendaElectrodomesticos {
                 </div>
             </div>
         `).join('');
+    }
+
+    // Obtener icono según categoría
+    getIconoCategoria(categoria) {
+        const iconos = {
+            'refrigeracion': '❄️',
+            'lavado': '🧼',
+            'cocina': '🍳',
+            'climatizacion': '🌡️',
+            'entretenimiento': '📺'
+        };
+        return iconos[categoria] || '📦';
+    }
+
+    // Obtener nombre de categoría
+    getNombreCategoria(categoria) {
+        const nombres = {
+            'refrigeracion': 'Refrigeración',
+            'lavado': 'Lavado',
+            'cocina': 'Cocina',
+            'climatizacion': 'Climatización',
+            'entretenimiento': 'Entretenimiento'
+        };
+        return nombres[categoria] || categoria;
     }
 
     // Editar producto (cargar datos en formulario)
@@ -155,7 +174,6 @@ class TiendaElectrodomesticos {
         document.getElementById('precio').value = producto.precio;
         document.getElementById('stock').value = producto.stock;
         document.getElementById('marca').value = producto.marca;
-        document.getElementById('imagen').value = producto.imagen || '';
         document.getElementById('descripcion').value = producto.descripcion;
         
         // Cambiar botón a "Actualizar"
@@ -187,24 +205,26 @@ class TiendaElectrodomesticos {
     async manejarSubmit(event) {
         event.preventDefault();
         
-        const formData = new FormData(event.target);
         const productoData = {
-            nombre: formData.get('nombre'),
-            categoria: formData.get('categoria'),
-            precio: parseFloat(formData.get('precio')),
-            stock: parseInt(formData.get('stock')),
-            marca: formData.get('marca'),
-            imagen: formData.get('imagen'),
-            descripcion: formData.get('descripcion')
+            nombre: document.getElementById('nombre').value,
+            categoria: document.getElementById('categoria').value,
+            precio: parseFloat(document.getElementById('precio').value),
+            stock: parseInt(document.getElementById('stock').value),
+            marca: document.getElementById('marca').value,
+            descripcion: document.getElementById('descripcion').value
         };
+
+        // Validación básica
+        if (!productoData.nombre || !productoData.categoria || !productoData.marca || !productoData.descripcion) {
+            alert('Por favor completa todos los campos requeridos');
+            return;
+        }
 
         try {
             if (this.productoEditando) {
-                // Actualizar producto existente
                 await this.actualizarProducto(this.productoEditando, productoData);
                 alert('✅ Producto actualizado correctamente');
             } else {
-                // Crear nuevo producto
                 await this.crearProducto(productoData);
                 alert('✅ Producto creado correctamente');
             }

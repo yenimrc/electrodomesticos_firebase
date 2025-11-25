@@ -1,261 +1,335 @@
-import { 
-  db, 
-  collection, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc 
-} from './config_firebase.js';
-
-class TiendaElectrodomesticos {
-    constructor() {
-        this.productos = [];
-        this.categoriaFiltro = 'todos';
-        this.productoEditando = null;
-        this.init();
-    }
-
-    async init() {
-        await this.cargarProductos();
-        this.setupEventListeners();
-        console.log("✅ CRUD inicializado correctamente");
-    }
-
-    // CREATE - Crear producto
-    async crearProducto(productoData) {
-        try {
-            const docRef = await addDoc(collection(db, "electrodomesticos"), productoData);
-            console.log("✅ Producto creado con ID:", docRef.id);
-            
-            this.productos.push({ id: docRef.id, ...productoData });
-            this.mostrarProductos();
-            this.limpiarFormulario();
-            
-            return docRef.id;
-        } catch (error) {
-            console.error("❌ Error creando producto:", error);
-            alert("Error al crear el producto: " + error.message);
-            throw error;
-        }
-    }
-
-    // READ - Cargar productos
-    async cargarProductos() {
-        try {
-            const querySnapshot = await getDocs(collection(db, "electrodomesticos"));
-            this.productos = [];
-            
-            querySnapshot.forEach((doc) => {
-                this.productos.push({ id: doc.id, ...doc.data() });
-            });
-
-            console.log(`📦 ${this.productos.length} productos cargados`);
-            this.mostrarProductos();
-        } catch (error) {
-            console.error("❌ Error cargando productos:", error);
-            document.getElementById('productos-container').innerHTML = 
-                '<div class="error">❌ Error al cargar los productos: ' + error.message + '</div>';
-        }
-    }
-
-    // UPDATE - Actualizar producto
-    async actualizarProducto(id, productoData) {
-        try {
-            const productoRef = doc(db, "electrodomesticos", id);
-            await updateDoc(productoRef, productoData);
-            console.log("✅ Producto actualizado:", id);
-            
-            const index = this.productos.findIndex(p => p.id === id);
-            if (index !== -1) {
-                this.productos[index] = { id, ...productoData };
-            }
-            
-            this.mostrarProductos();
-            this.limpiarFormulario();
-            
-        } catch (error) {
-            console.error("❌ Error actualizando producto:", error);
-            alert("Error al actualizar el producto: " + error.message);
-            throw error;
-        }
-    }
-
-    // DELETE - Eliminar producto
-    async eliminarProducto(id) {
-        if (!confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-            return;
-        }
-        
-        try {
-            await deleteDoc(doc(db, "electrodomesticos", id));
-            console.log("✅ Producto eliminado:", id);
-            
-            this.productos = this.productos.filter(p => p.id !== id);
-            this.mostrarProductos();
-            
-        } catch (error) {
-            console.error("❌ Error eliminando producto:", error);
-            alert("Error al eliminar el producto: " + error.message);
-        }
-    }
-
-    // Mostrar productos en la interfaz
-    mostrarProductos() {
-        const container = document.getElementById('productos-container');
-        
-        const productosFiltrados = this.categoriaFiltro === 'todos' 
-            ? this.productos 
-            : this.productos.filter(producto => producto.categoria === this.categoriaFiltro);
-
-        if (productosFiltrados.length === 0) {
-            container.innerHTML = '<div class="loading">📭 No hay productos en esta categoría</div>';
-            return;
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tienda de Electrodomésticos - CRUD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        container.innerHTML = productosFiltrados.map(producto => `
-            <div class="producto-card" data-categoria="${producto.categoria}">
-                <div class="producto-imagen">
-                    ${this.getIconoCategoria(producto.categoria)}
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* PANEL DE ADMINISTRACIÓN */
+        .admin-panel {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .admin-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 0.75rem;
+            border: 2px solid #bdc3c7;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .form-full {
+            grid-column: 1 / -1;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-success {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #219a52;
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-warning {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background-color: #d35400;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* FILTROS */
+        .filtros {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .filtro-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #3498db;
+            background: white;
+            color: #3498db;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filtro-btn.active {
+            background: #3498db;
+            color: white;
+        }
+
+        /* PRODUCTOS */
+        .productos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .producto-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .producto-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .producto-imagen {
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2.5rem;
+        }
+
+        .producto-nombre {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+
+        .producto-precio {
+            color: #e74c3c;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .producto-marca {
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .producto-stock {
+            color: #27ae60;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+
+        .producto-descripcion {
+            color: #34495e;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+            font-size: 0.9rem;
+        }
+
+        .producto-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+            grid-column: 1 / -1;
+        }
+
+        .error {
+            text-align: center;
+            padding: 2rem;
+            color: #e74c3c;
+            grid-column: 1 / -1;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .categoria-icon {
+            font-size: 0.8rem;
+            background: #ecf0f1;
+            padding: 0.2rem 0.5rem;
+            border-radius: 15px;
+            color: #7f8c8d;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏠 ElectroHome - CRUD Completo</h1>
+    </div>
+
+    <div class="container">
+        <!-- PANEL DE ADMINISTRACIÓN -->
+        <div class="admin-panel">
+            <h2 class="admin-title">📋 Panel de Administración</h2>
+            <form id="producto-form">
+                <input type="hidden" id="producto-id">
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="nombre">Nombre del Producto *</label>
+                        <input type="text" id="nombre" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="categoria">Categoría *</label>
+                        <select id="categoria" required>
+                            <option value="">Seleccionar categoría</option>
+                            <option value="refrigeracion">❄️ Refrigeración</option>
+                            <option value="lavado">🧼 Lavado</option>
+                            <option value="cocina">🍳 Cocina</option>
+                            <option value="climatizacion">🌡️ Climatización</option>
+                            <option value="entretenimiento">📺 Entretenimiento</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="precio">Precio *</label>
+                        <input type="number" id="precio" step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="stock">Stock *</label>
+                        <input type="number" id="stock" min="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="marca">Marca *</label>
+                        <input type="text" id="marca" required>
+                    </div>
+                    
+                    <div class="form-group form-full">
+                        <label for="descripcion">Descripción *</label>
+                        <textarea id="descripcion" required placeholder="Describe las características del producto..."></textarea>
+                    </div>
                 </div>
-                <div class="producto-nombre">${producto.nombre}</div>
-                <div class="producto-marca">🏷️ ${producto.marca}</div>
-                <div class="producto-precio">💰 $${producto.precio}</div>
-                <div class="producto-stock">📦 ${producto.stock} unidades</div>
-                <div class="categoria-icon">${this.getNombreCategoria(producto.categoria)}</div>
-                <div class="producto-descripcion">${producto.descripcion}</div>
-                <div class="producto-actions">
-                    <button class="btn btn-warning" onclick="tienda.editarProducto('${producto.id}')">
-                        ✏️ Editar
+                
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary" id="btn-guardar">
+                        ➕ Agregar Producto
                     </button>
-                    <button class="btn btn-danger" onclick="tienda.eliminarProducto('${producto.id}')">
-                        🗑️ Eliminar
+                    <button type="button" class="btn btn-warning hidden" id="btn-cancelar">
+                        ❌ Cancelar Edición
                     </button>
                 </div>
-            </div>
-        `).join('');
-    }
+            </form>
+        </div>
 
-    // Obtener icono según categoría
-    getIconoCategoria(categoria) {
-        const iconos = {
-            'refrigeracion': '❄️',
-            'lavado': '🧼',
-            'cocina': '🍳',
-            'climatizacion': '🌡️',
-            'entretenimiento': '📺'
-        };
-        return iconos[categoria] || '📦';
-    }
+        <!-- FILTROS -->
+        <div class="filtros">
+            <button class="filtro-btn active" data-categoria="todos">📦 Todos los Productos</button>
+            <button class="filtro-btn" data-categoria="refrigeracion">❄️ Refrigeración</button>
+            <button class="filtro-btn" data-categoria="lavado">🧼 Lavado</button>
+            <button class="filtro-btn" data-categoria="cocina">🍳 Cocina</button>
+            <button class="filtro-btn" data-categoria="climatizacion">🌡️ Climatización</button>
+            <button class="filtro-btn" data-categoria="entretenimiento">📺 Entretenimiento</button>
+        </div>
 
-    // Obtener nombre de categoría
-    getNombreCategoria(categoria) {
-        const nombres = {
-            'refrigeracion': 'Refrigeración',
-            'lavado': 'Lavado',
-            'cocina': 'Cocina',
-            'climatizacion': 'Climatización',
-            'entretenimiento': 'Entretenimiento'
-        };
-        return nombres[categoria] || categoria;
-    }
+        <!-- LISTA DE PRODUCTOS -->
+        <div id="productos-container" class="productos-grid">
+            <div class="loading">🔄 Cargando productos...</div>
+        </div>
+    </div>
 
-    // Editar producto (cargar datos en formulario)
-    editarProducto(id) {
-        const producto = this.productos.find(p => p.id === id);
-        if (!producto) return;
-
-        this.productoEditando = id;
-        
-        // Llenar formulario con datos del producto
-        document.getElementById('producto-id').value = id;
-        document.getElementById('nombre').value = producto.nombre;
-        document.getElementById('categoria').value = producto.categoria;
-        document.getElementById('precio').value = producto.precio;
-        document.getElementById('stock').value = producto.stock;
-        document.getElementById('marca').value = producto.marca;
-        document.getElementById('descripcion').value = producto.descripcion;
-        
-        // Cambiar botón a "Actualizar"
-        document.getElementById('btn-guardar').textContent = '💾 Actualizar Producto';
-        document.getElementById('btn-guardar').className = 'btn btn-success';
-        document.getElementById('btn-cancelar').classList.remove('hidden');
-        
-        // Scroll al formulario
-        document.querySelector('.admin-panel').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // Cancelar edición
-    cancelarEdicion() {
-        this.productoEditando = null;
-        this.limpiarFormulario();
-    }
-
-    // Limpiar formulario
-    limpiarFormulario() {
-        document.getElementById('producto-form').reset();
-        document.getElementById('producto-id').value = '';
-        document.getElementById('btn-guardar').textContent = '➕ Agregar Producto';
-        document.getElementById('btn-guardar').className = 'btn btn-primary';
-        document.getElementById('btn-cancelar').classList.add('hidden');
-        this.productoEditando = null;
-    }
-
-    // Manejar envío del formulario
-    async manejarSubmit(event) {
-        event.preventDefault();
-        
-        const productoData = {
-            nombre: document.getElementById('nombre').value,
-            categoria: document.getElementById('categoria').value,
-            precio: parseFloat(document.getElementById('precio').value),
-            stock: parseInt(document.getElementById('stock').value),
-            marca: document.getElementById('marca').value,
-            descripcion: document.getElementById('descripcion').value
-        };
-
-        // Validación básica
-        if (!productoData.nombre || !productoData.categoria || !productoData.marca || !productoData.descripcion) {
-            alert('Por favor completa todos los campos requeridos');
-            return;
-        }
-
-        try {
-            if (this.productoEditando) {
-                await this.actualizarProducto(this.productoEditando, productoData);
-                alert('✅ Producto actualizado correctamente');
-            } else {
-                await this.crearProducto(productoData);
-                alert('✅ Producto creado correctamente');
-            }
-        } catch (error) {
-            console.error('Error en operación:', error);
-        }
-    }
-
-    // Configurar event listeners
-    setupEventListeners() {
-        // Formulario
-        document.getElementById('producto-form').addEventListener('submit', (e) => {
-            this.manejarSubmit(e);
-        });
-
-        // Botón cancelar
-        document.getElementById('btn-cancelar').addEventListener('click', () => {
-            this.cancelarEdicion();
-        });
-
-        // Filtros
-        document.querySelectorAll('.filtro-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.categoriaFiltro = e.target.dataset.categoria;
-                this.mostrarProductos();
-            });
-        });
-    }
-}
-
-// Inicializar la tienda
-const tienda = new TiendaElectrodomesticos();
+    <!-- Scripts de Firebase -->
+    <script type="module" src="config_firebase.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
